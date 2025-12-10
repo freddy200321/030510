@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Catch the Stars — 接星星</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#0f1724;
+    --accent:#ffd166;
+    --accent-2:#4cc9f0;
+    --muted:rgba(255,255,255,0.65);
+  }
+  html,body{height:100%;margin:0;font-family:Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{background:linear-gradient(180deg,var(--bg),#071022);display:flex;align-items:center;justify-content:center;color:#fff;}
+  .game-wrap{width:min(920px,96vw);max-width:920px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:14px;padding:18px;box-shadow:0 8px 30px rgba(2,6,23,0.6);display:grid;grid-template-columns:1fr 320px;gap:14px;}
+  @media (max-width:880px){.game-wrap{grid-template-columns:1fr;}}
+  .stage{background:linear-gradient(180deg,#061123  , #042033);border-radius:10px;position:relative;overflow:hidden;height:520px;display:flex;flex-direction:column;}
+  .sky{flex:1;position:relative;}
+  .ground{height:90px;background:linear-gradient(180deg,#031420,#07182b);display:flex;align-items:center;justify-content:center;padding:10px;}
+  .basket{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:120px;height:48px;border-radius:12px;background:linear-gradient(180deg,#2b2b2b,#111);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;box-shadow:0 6px 16px rgba(0,0,0,0.6);}
+  .star{position:absolute;width:36px;height:36px;pointer-events:none;background:radial-gradient(circle at 30% 30%,#fff 0,#ffd166 20%,#ffb84d 40%,#ff8f3f 100%);border-radius:6px;transform:rotate(25deg);box-shadow:0 8px 18px rgba(0,0,0,0.45);}
+  .panel{padding:12px;background:linear-gradient(180deg,var(--panel),rgba(255,255,255,0.02));border-radius:10px;display:flex;flex-direction:column;gap:12px;}
+  .title{font-size:18px;font-weight:700;color:var(--accent);}
+  .stat{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;}
+  button{border:0;padding:10px 12px;border-radius:8px;background:#0b2a3a;color:#dff7ff;font-weight:600;cursor:pointer;box-shadow:0 6px 12px rgba(3,10,18,0.6);}
+  button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);}
+  .hint{font-size:13px;color:var(--muted);}
+  .footer{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:10px;align-items:center;}
+  .big-score{font-size:42px;font-weight:800;color:var(--accent-2);letter-spacing:1px;}
+  .small{font-size:13px;color:var(--muted);}
+  /* touch indicator */
+  .touch-indicator{position:absolute;bottom:110px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,0.12);pointer-events:none;}
+</style>
+</head>
+<body>
+  <div class="game-wrap" id="game">
+    <div class="stage" id="stage">
+      <div class="sky" id="sky"></div>
+      <div class="ground">
+        <div class="hint">用 ← → 或 A D 控制篮子。手机上拖动或点按屏幕任意位置移动篮子。</div>
+      </div>
+      <div class="basket" id="basket">🧺</div>
+      <div class="touch-indicator" id="touchIndicator">触摸并拖动以控制篮子</div>
+    </div>
+
+    <div class="panel">
+      <div>
+        <div class="title">Catch the Stars — 接星星</div>
+        <div class="small">在 GitHub Pages 上托管即可分享 — 单文件、无依赖。</div>
+      </div>
+
+      <div class="stat">
+        <div>
+          <div class="small">当前分数</div>
+          <div class="big-score" id="score">0</div>
+        </div>
+        <div>
+          <div class="small">最高分</div>
+          <div style="font-weight:800;font-size:20px" id="best">0</div>
+        </div>
+      </div>
+
+      <div class="stat">
+        <div>
+          <div class="small">生命</div>
+          <div id="lives" style="font-weight:700">3</div>
+        </div>
+        <div>
+          <div class="small">速度</div>
+          <div id="speed" style="font-weight:700">1.0</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn">开始 / 继续</button>
+        <button id="pauseBtn" class="secondary">暂停</button>
+        <button id="resetBtn" class="secondary">重置</button>
+        <button id="shareBtn" class="secondary">分享链接</button>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div class="footer">
+        <div class="small">版本：v1.0 · 本地存储高分</div>
+        <div class="small">作者：你（可自定义）</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const sky = document.getElementById('sky');
+  const basket = document.getElementById('basket');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const livesEl = document.getElementById('lives');
+  const speedEl = document.getElementById('speed');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const shareBtn = document.getElementById('shareBtn');
+  const touchIndicator = document.getElementById('touchIndicator');
+
+  const state = {
+    running: false,
+    width: 0,
+    height: 0,
+    basketX: 0,
+    basketW: 120,
+    basketH: 48,
+    score: 0,
+    best: 0,
+    lives: 3,
+    speedMult: 1.0,
+    stars: [],
+    lastSpawn: 0,
+    spawnInterval: 900, // ms
+    lastTime: 0
+  };
+
+  const STORAGE_KEY = 'catch-stars-best-v1';
+
+  function initSizes(){
+    const rect = document.getElementById('stage').getBoundingClientRect();
+    state.width = rect.width;
+    state.height = rect.height;
+    // position basket horizontally center
+    state.basketX = (state.width - state.basketW) / 2;
+    basket.style.left = state.basketX + 'px';
+    basket.style.bottom = '100px';
+  }
+
+  function loadBest(){
+    try{
+      const b = localStorage.getItem(STORAGE_KEY);
+      state.best = b ? parseInt(b,10) : 0;
+      bestEl.textContent = state.best;
+    }catch(e){ state.best = 0; }
+  }
+
+  function saveBest(){
+    try{ localStorage.setItem(STORAGE_KEY, String(state.best)); }catch(e){}
+  }
+
+  function createStar(x, size=36){
+    const el = document.createElement('div');
+    el.className = 'star';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.left = x + 'px';
+    el.style.top = '-40px';
+    sky.appendChild(el);
+    return {el, x, y:-40, size, vy: 80 + Math.random()*50};
+  }
+
+  function spawnStar(){
+    const padding = 20;
+    const x = Math.max(padding, Math.random()*(state.width - padding - 36));
+    const s = createStar(x, 28 + Math.floor(Math.random()*20));
+    // add slight horizontal drift
+    s.vx = (Math.random()-0.5)*30;
+    state.stars.push(s);
+  }
+
+  function update(dt){
+    if(!state.running) return;
+    // spawn logic (speed affects interval)
+    state.lastSpawn += dt;
+    const interval = Math.max(350, state.spawnInterval / state.speedMult);
+    if(state.lastSpawn > interval){
+      spawnStar();
+      state.lastSpawn = 0;
+    }
+    // update stars
+    for(let i = state.stars.length-1; i>=0; i--){
+      const s = state.stars[i];
+      s.vy += 0; // gravity effect can be added
+      s.y += s.vy * dt/1000 * state.speedMult;
+      s.x += s.vx * dt/1000;
+      s.el.style.top = s.y + 'px';
+      s.el.style.left = s.x + 'px';
+      // remove if out of bottom
+      if(s.y > state.height - 90){
+        // missed
+        sky.removeChild(s.el);
+        state.stars.splice(i,1);
+        state.lives -= 1;
+        updateLives();
+        if(state.lives <= 0){
+          gameOver();
+          return;
+        }
+      }else{
+        // collision with basket?
+        const basketRect = {
+          x: state.basketX,
+          y: state.height - 100 - state.basketH, // approximate
+          w: state.basketW,
+          h: state.basketH
+        };
+        const starRect = {x: s.x, y: s.y, w: s.size, h: s.size};
+        if(rectsOverlap(basketRect, starRect)){
+          // caught
+          sky.removeChild(s.el);
+          state.stars.splice(i,1);
+          state.score += 10;
+          scoreEl.textContent = state.score;
+          // increase speed slightly
+          state.speedMult += 0.02;
+          speedEl.textContent = state.speedMult.toFixed(2);
+        }
+      }
+    }
+  }
+
+  function rectsOverlap(a,b){
+    return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+  }
+
+  function gameLoop(ts){
+    if(!state.lastTime) state.lastTime = ts;
+    const dt = ts - state.lastTime;
+    state.lastTime = ts;
+    update(dt);
+    if(state.running) requestAnimationFrame(gameLoop);
+  }
+
+  function startGame(){
+    if(state.running) return;
+    state.running = true;
+    state.lastTime = 0;
+    touchIndicator.style.opacity = 0;
+    requestAnimationFrame(gameLoop);
+  }
+
+  function pauseGame(){
+    state.running = false;
+  }
+
+  function resetGame(){
+    // clear stars
+    for(const s of state.stars){
+      if(s.el && s.el.parentNode) s.el.parentNode.removeChild(s.el);
+    }
+    state.stars = [];
+    state.score = 0;
+    state.lives = 3;
+    state.speedMult = 1.0;
+    state.lastSpawn = 0;
+    scoreEl.textContent = state.score;
+    livesEl.textContent = state.lives;
+    speedEl.textContent = state.speedMult.toFixed(2);
+    state.running = false;
+  }
+
+  function updateLives(){
+    livesEl.textContent = state.lives;
+  }
+
+  function gameOver(){
+    state.running = false;
+    // clear stars
+    for(const s of state.stars){
+      if(s.el && s.el.parentNode) s.el.parentNode.removeChild(s.el);
+    }
+    state.stars = [];
+    // show modal-ish (simple)
+    setTimeout(()=>{
+      alert('游戏结束！得分：' + state.score);
+      if(state.score > state.best){
+        state.best = state.score;
+        bestEl.textContent = state.best;
+        saveBest();
+        alert('新纪录！🎉');
+      }
+    }, 50);
+  }
+
+  // controls
+  let leftPressed=false,rightPressed=false;
+  window.addEventListener('keydown', e=>{
+    if(e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a'){ leftPressed=true; moveBasket(-1); }
+    if(e.key === 'ArrowRight' || e.key.toLowerCase() === 'd'){ rightPressed=true; moveBasket(1); }
+    if(e.key === ' '){ if(state.running) pauseGame(); else startGame(); }
+  });
+  window.addEventListener('keyup', e=>{
+    if(e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a'){ leftPressed=false; }
+    if(e.key === 'ArrowRight' || e.key.toLowerCase() === 'd'){ rightPressed=false; }
+  });
+
+  // continuous keyboard movement
+  setInterval(()=>{
+    if(state.running){
+      if(leftPressed) moveBasket(-6);
+      if(rightPressed) moveBasket(6);
+    }
+  }, 16);
+
+  function moveBasket(delta){
+    state.basketX = Math.max(8, Math.min(state.width - state.basketW - 8, state.basketX + delta));
+    basket.style.left = state.basketX + 'px';
+  }
+
+  // touch & mouse for mobile
+  let dragging = false;
+  function handlePointerMove(clientX){
+    const stageRect = document.getElementById('stage').getBoundingClientRect();
+    const relX = clientX - stageRect.left;
+    state.basketX = Math.max(8, Math.min(state.width - state.basketW - 8, relX - state.basketW/2));
+    basket.style.left = state.basketX + 'px';
+  }
+  // pointer events
+  const stageEl = document.getElementById('stage');
+  stageEl.addEventListener('pointerdown', e=>{
+    dragging = true;
+    startGame();
+    handlePointerMove(e.clientX);
+  });
+  window.addEventListener('pointermove', e=>{
+    if(dragging){ handlePointerMove(e.clientX); }
+  });
+  window.addEventListener('pointerup', e=>{
+    dragging = false;
+  });
+
+  // buttons
+  startBtn.addEventListener('click', ()=>{
+    startGame();
+  });
+  pauseBtn.addEventListener('click', ()=>{
+    pauseGame();
+  });
+  resetBtn.addEventListener('click', ()=>{
+    resetGame();
+  });
+  shareBtn.addEventListener('click', ()=>{
+    const url = location.href.split('#')[0] + '#score=' + state.score;
+    if(navigator.share){
+      try{ navigator.share({title:'Catch the Stars — 我的分数：' + state.score, text:'来挑战我的分数！', url}); return; }catch(e){}
+    }
+    // fallback: copy
+    copyText(url);
+    alert('链接已复制到剪贴板：你可以粘贴分享给朋友');
+  });
+
+  function copyText(t){
+    try{
+      navigator.clipboard.writeText(t);
+    }catch(e){
+      const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); }catch(e){} ta.remove();
+    }
+  }
+
+  // resize handling
+  window.addEventListener('resize', ()=>{ initSizes(); });
+
+  // initialize
+  initSizes();
+  loadBest();
+  scoreEl.textContent = state.score;
+  livesEl.textContent = state.lives;
+  speedEl.textContent = state.speedMult.toFixed(2);
+
+  // helpful: if hash contains play=true auto-start
+  if(location.hash.includes('play')) startGame();
+
+})();
+</script>
+</body>
+</html>
